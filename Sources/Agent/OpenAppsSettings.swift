@@ -11,14 +11,14 @@ struct OpenAppsSection: View {
         Section {
             DisclosureGroup(isExpanded: $expanded) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("macOS gives every open app its own Dock icon, and only the Dock itself can leave one out. With System Integrity Protection (SIP) partly off, Dock Folders can do that from inside the Dock, so an open app shows only in its folder. SIP helps protect your Mac from malware; only turn it off if you’re comfortable with less of that protection.")
+                    Text(L10n.text("macOS gives every open app its own Dock icon, and only the Dock itself can leave one out. With System Integrity Protection (SIP) partly off, Dock Folders can do that from inside the Dock, so an open app shows only in its folder. SIP helps protect your Mac from malware; only turn it off if you’re comfortable with less of that protection."))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if !model.readiness.ready { steps }
 
-                    Toggle("Show open apps only in their folders", isOn: Binding(
+                    Toggle(L10n.text("Show open apps only in their folders"), isOn: Binding(
                         get: { model.enabled },
                         set: { on in
                             OpenAppsInFolders.setEnabled(on)
@@ -30,13 +30,15 @@ struct OpenAppsSection: View {
 
                     if model.helperInstalled || model.readiness.filesystemOff || model.readiness.debuggingOff {
                         HStack(alignment: .firstTextBaseline) {
-                            Text("To turn SIP back on, run `csrutil enable` in Recovery\(model.readiness.appleSilicon ? " and `sudo nvram -d boot-args` on your Mac" : "").")
+                            Text(L10n.text(model.readiness.appleSilicon
+                                ? "To turn SIP back on, run `csrutil enable` in Recovery and `sudo nvram -d boot-args` on your Mac."
+                                : "To turn SIP back on, run `csrutil enable` in Recovery."))
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                             Spacer()
                             if model.helperInstalled {
-                                Button("Remove Helper…") {
+                                Button(L10n.text("Remove Helper…")) {
                                     OpenAppsInFolders.uninstallHelper()
                                     model.refresh()
                                 }
@@ -46,7 +48,7 @@ struct OpenAppsSection: View {
                 }
                 .padding(.vertical, 6)
             } label: {
-                LabeledContent("Open apps only in their folders") {
+                LabeledContent(L10n.text("Open apps only in their folders")) {
                     Text(model.summary).foregroundStyle(.secondary)
                 }
             }
@@ -59,42 +61,42 @@ struct OpenAppsSection: View {
         VStack(alignment: .leading, spacing: 10) {
             StepRow(number: 1, done: r.filesystemOff && r.debuggingOff,
                     text: r.appleSilicon
-                        ? "Shut down. Press and hold the power button until you see startup options, choose Options, then Utilities ▸ Terminal."
-                        : "Restart while holding ⌘R, then choose Utilities ▸ Terminal.")
-            StepRow(number: 2, done: r.filesystemOff && r.debuggingOff, text: "Run this, then restart:",
+                        ? L10n.text("Shut down. Press and hold the power button until you see startup options, choose Options, then Utilities ▸ Terminal.")
+                        : L10n.text("Restart while holding ⌘R, then choose Utilities ▸ Terminal."))
+            StepRow(number: 2, done: r.filesystemOff && r.debuggingOff, text: L10n.text("Run this, then restart:"),
                     command: "csrutil enable --without fs --without debug --without nvram")
             if r.appleSilicon {
-                StepRow(number: 3, done: r.bootArgSet, text: "Back on your Mac, run this in Terminal, then restart again:",
+                StepRow(number: 3, done: r.bootArgSet, text: L10n.text("Back on your Mac, run this in Terminal, then restart again:"),
                         command: "sudo nvram boot-args=-arm64e_preview_abi")
             }
-            StepRow(number: r.appleSilicon ? 4 : 3, done: false, text: "Come back here and turn it on.")
+            StepRow(number: r.appleSilicon ? 4 : 3, done: false, text: L10n.text("Come back here and turn it on."))
         }
     }
 
     @ViewBuilder private var status: some View {
         if let reason = model.pausedReason {
             HStack(alignment: .firstTextBaseline) {
-                Label("Paused. \(reason)", systemImage: "pause.circle")
+                Label(L10n.format("Paused. %@", L10n.text(reason)), systemImage: "pause.circle")
                 Spacer()
-                Button("Try Again") { OpenAppsInFolders.setEnabled(true); model.refresh() }
+                Button(L10n.text("Try Again")) { OpenAppsInFolders.setEnabled(true); model.refresh() }
             }
             .font(.callout)
         } else if model.helperInstalled, !model.helperCurrent {
             HStack(alignment: .firstTextBaseline) {
-                Label("The helper is from another version of Dock Folders.", systemImage: "arrow.triangle.2.circlepath")
+                Label(L10n.text("The helper is from another version of Dock Folders."), systemImage: "arrow.triangle.2.circlepath")
                 Spacer()
-                Button("Update…") { OpenAppsInFolders.setEnabled(true); model.refresh() }
+                Button(L10n.text("Update…")) { OpenAppsInFolders.setEnabled(true); model.refresh() }
             }
             .font(.callout)
         } else if model.active {
-            Label("Working: open apps in folders have no Dock icon of their own.", systemImage: "checkmark.circle.fill")
+            Label(L10n.text("Working: open apps in folders have no Dock icon of their own."), systemImage: "checkmark.circle.fill")
                 .font(.callout).foregroundStyle(.secondary)
         } else if model.unsupportedDock {
-            Label("This version of macOS changed the Dock in a way Dock Folders doesn’t know yet, so it’s leaving the Dock alone.",
+            Label(L10n.text("This version of macOS changed the Dock in a way Dock Folders doesn’t know yet, so it’s leaving the Dock alone."),
                   systemImage: "exclamationmark.triangle")
                 .font(.callout).foregroundStyle(.secondary)
         } else {
-            Label("Waiting for the Dock…", systemImage: "hourglass")
+            Label(L10n.text("Waiting for the Dock…"), systemImage: "hourglass")
                 .font(.callout).foregroundStyle(.secondary)
         }
     }
@@ -127,7 +129,7 @@ private struct StepRow: View {
                             Image(systemName: "doc.on.doc")
                         }
                         .buttonStyle(.borderless)
-                        .help("Copy")
+                        .help(L10n.text("Copy"))
                     }
                 }
             }
@@ -175,7 +177,7 @@ final class OpenAppsModel: ObservableObject {
     }
 
     var summary: String {
-        if enabled { return active ? "On" : "On, not running" }
-        return readiness.ready ? "Off" : "Needs SIP partly off"
+        if enabled { return active ? L10n.text("On") : L10n.text("On, not running") }
+        return readiness.ready ? L10n.text("Off") : L10n.text("Needs SIP partly off")
     }
 }

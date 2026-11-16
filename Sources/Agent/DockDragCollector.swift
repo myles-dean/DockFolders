@@ -111,7 +111,7 @@ final class DockDragCollector {
             case .app(let url):
                 guard let frame = self.currentFrame(of: over) else { return }
                 self.armedApp = url
-                DockTag.shared.show("Create Folder", forTile: frame)
+                DockTag.shared.show(L10n.text("Create Folder"), forTile: frame)
             }
         }
     }

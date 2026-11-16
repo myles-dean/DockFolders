@@ -99,7 +99,7 @@ final class FolderStore {
     func uniqueStubName(for name: String, excluding id: String?) -> String {
         var base = name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        if base.isEmpty || base.hasPrefix(".") { base = "Folder" + base }
+        if base.isEmpty || base.hasPrefix(".") { base = L10n.text("Folder") + base }
         var candidate = base + ".app"
         var n = 2
         let taken = Set(folders.filter { $0.id != id }.map { $0.stubName.lowercased() })

@@ -182,7 +182,7 @@ enum StubManager {
         process.waitUntilExit()
         if process.terminationStatus != 0 {
             throw NSError(domain: "DockFolders", code: Int(process.terminationStatus),
-                          userInfo: [NSLocalizedDescriptionKey: "codesign failed for \(url.lastPathComponent)"])
+                          userInfo: [NSLocalizedDescriptionKey: L10n.format("codesign failed for %@", url.lastPathComponent)])
         }
     }
 }

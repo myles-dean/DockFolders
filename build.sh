@@ -53,6 +53,7 @@ cp Resources/Stub-Info.plist "$STUB/Contents/Info.plist"
 echo "→ Dock Folders agent"
 "${SWIFTC[@]}" -module-name DockFolders Sources/Shared/*.swift Sources/Agent/*.swift -o "$APP/Contents/MacOS/Dock Folders"
 cp Resources/Agent-Info.plist "$APP/Contents/Info.plist"
+cp -R Resources/en.lproj Resources/zh-Hans.lproj "$APP/Contents/Resources/"
 
 echo "→ Dock helper (only used with System Integrity Protection partly off)"
 # arm64e: on Apple silicon the loader signs a thread's start address for the Dock, and the

@@ -9,7 +9,7 @@ enum FolderActions {
 
     /// New folders are named after their apps' categories (see FolderNaming), or "Folder" when
     /// the apps don't say; you can rename them in Settings.
-    static let folderName = "Folder"
+    static var folderName: String { L10n.text("Folder") }
 
     /// An app dragged onto another app in the Dock: the two become a folder, named after their
     /// categories, in their place. Both apps' tiles leave the Dock together, then the folder
@@ -21,7 +21,7 @@ enum FolderActions {
             try StubManager.install(folder)
         } catch {
             store.delete(folder.id)
-            stubFailed("Couldn’t create the folder.", error)
+            stubFailed(L10n.text("Couldn’t create the folder."), error)
             return
         }
         takeFromOtherFolders(apps, except: folder.id)
@@ -77,7 +77,7 @@ enum FolderActions {
             try StubManager.install(folder)
         } catch {
             store.delete(folder.id)
-            stubFailed("Couldn’t create the folder.", error)
+            stubFailed(L10n.text("Couldn’t create the folder."), error)
             return
         }
         takeFromOtherFolders(apps, except: folder.id)
@@ -269,8 +269,8 @@ enum FolderActions {
         let previous = NSWorkspace.shared.frontmostApplication
         NSApp.activate()
         let panel = NSOpenPanel()
-        panel.title = "Add Apps to “\(folder.name)”"
-        panel.prompt = "Add"
+        panel.title = L10n.format("Add Apps to “%@”", folder.name)
+        panel.prompt = L10n.text("Add")
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.treatsFilePackagesAsDirectories = false
@@ -389,7 +389,7 @@ enum FolderActions {
         do {
             try StubManager.install(renamed)
         } catch {
-            stubFailed("Couldn’t rename the folder.", error)
+            stubFailed(L10n.text("Couldn’t rename the folder."), error)
             return
         }
         // A stub from an earlier rename that never reached the Dock can go right away.
@@ -481,7 +481,7 @@ enum FolderActions {
             try StubManager.install(folder)
         } catch {
             store.delete(folder.id)
-            stubFailed("Couldn’t create the folder.", error)
+            stubFailed(L10n.text("Couldn’t create the folder."), error)
             return nil
         }
         EventInterceptor.shared.update(folders: store.folders)
@@ -503,7 +503,7 @@ enum Prompt {
         if let message { alert.informativeText = message }
         if let icon { alert.icon = icon }
         alert.addButton(withTitle: confirm)
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: L10n.text("Cancel"))
         let field = NSTextField(string: defaultValue)
         field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
         alert.accessoryView = field
@@ -523,7 +523,7 @@ enum Prompt {
         alert.informativeText = message
         if let icon { alert.icon = icon }
         alert.addButton(withTitle: confirm)
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: L10n.text("Cancel"))
         let response = alert.runModal()
         previous?.activate()
         return response == .alertFirstButtonReturn
@@ -534,6 +534,7 @@ enum Prompt {
         alert.alertStyle = .warning
         alert.messageText = title
         alert.informativeText = error.localizedDescription
+        alert.addButton(withTitle: L10n.text("OK"))
         NSApp.activate()
         alert.runModal()
     }

@@ -27,11 +27,11 @@ enum AppMenu {
             if !windows.isEmpty { entries.append(.separator) }
         }
 
-        entries.append(.submenu("Options", [
-            .action("Remove from Folder") { FolderActions.removeApp(app.url, from: folderID, deleteIfEmpty: true) },
-            .action("Move to Dock") { FolderActions.moveAppToDock(app.url, from: folderID) },
+        entries.append(.submenu(L10n.text("Options"), [
+            .action(L10n.text("Remove from Folder")) { FolderActions.removeApp(app.url, from: folderID, deleteIfEmpty: true) },
+            .action(L10n.text("Move to Dock")) { FolderActions.moveAppToDock(app.url, from: folderID) },
             .separator,
-            .action("Show in Finder") {
+            .action(L10n.text("Show in Finder")) {
                 panel.close()
                 NSWorkspace.shared.activateFileViewerSelecting([app.url])
             },
@@ -39,20 +39,20 @@ enum AppMenu {
         entries.append(.separator)
 
         if let running {
-            entries.append(.action("Show All Windows") {
+            entries.append(.action(L10n.text("Show All Windows")) {
                 panel.close()
                 if !DockAX.shared.showExposé(forAppAt: app.url) { running.activate() }
             })
             if running.isHidden {
-                entries.append(.action("Show") { running.unhide(); running.activate(); panel.close() })
+                entries.append(.action(L10n.text("Show")) { running.unhide(); running.activate(); panel.close() })
             } else {
-                entries.append(.action("Hide") { panel.stayOpenThroughAppSwitch(); running.hide() })
+                entries.append(.action(L10n.text("Hide")) { panel.stayOpenThroughAppSwitch(); running.hide() })
             }
-            var quit = MenuEntry.action("Quit") { panel.stayOpenThroughAppSwitch(); running.terminate() }
-            quit.alternate = ("Force Quit", { panel.stayOpenThroughAppSwitch(); running.forceTerminate() })
+            var quit = MenuEntry.action(L10n.text("Quit")) { panel.stayOpenThroughAppSwitch(); running.terminate() }
+            quit.alternate = (L10n.text("Force Quit"), { panel.stayOpenThroughAppSwitch(); running.forceTerminate() })
             entries.append(quit)
         } else {
-            entries.append(.action("Open") {
+            entries.append(.action(L10n.text("Open")) {
                 let config = NSWorkspace.OpenConfiguration()
                 config.activates = true
                 NSWorkspace.shared.openApplication(at: app.url, configuration: config) { _, _ in }
@@ -84,11 +84,11 @@ enum DockMenus {
         guard FolderStore.shared.folder(id: folderID) != nil else { return [] }
         let settings = SettingsController.shared
         return [
-            .action("Edit Name…") { settings.show(folderID: folderID, editingName: true) },
-            .action("Add Apps…") { settings.addApps(to: folderID) },
-            .action("Empty Folder") { FolderActions.emptyFolder(folderID) },
+            .action(L10n.text("Edit Name…")) { settings.show(folderID: folderID, editingName: true) },
+            .action(L10n.text("Add Apps…")) { settings.addApps(to: folderID) },
+            .action(L10n.text("Empty Folder")) { FolderActions.emptyFolder(folderID) },
             .separator,
-            .action("Settings…") { settings.show(folderID: folderID) },
+            .action(L10n.text("Settings…")) { settings.show(folderID: folderID) },
         ]
     }
 

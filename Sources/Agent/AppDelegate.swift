@@ -6,6 +6,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var trustTimer: Timer?
     private var signalSources: [DispatchSourceSignal] = []
     private let welcomedKey = "DFWelcomed"
+    private var languageObservers: [NSObjectProtocol] = []
+    private var setupCompleted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // One copy only.
@@ -21,6 +23,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         handleTerminationSignals()
         installMainMenu()
+        languageObservers.append(NotificationCenter.default.addObserver(forName: Localization.didChange, object: nil, queue: .main) { [weak self] _ in
+            FolderPanelController.shared.close(animated: false)
+            GlassMenuController.shared.closeAll()
+            DockTag.shared.hide()
+            self?.installMainMenu()
+        })
+        languageObservers.append(NotificationCenter.default.addObserver(forName: Localization.didConfirm, object: nil, queue: .main) { [weak self] _ in
+            self?.startAfterLanguageSelection()
+        })
+        startAfterLanguageSelection()
+    }
+
+    private func startAfterLanguageSelection() {
+        guard Localization.shared.hasChosen else {
+            OnboardingController.shared.show()
+            return
+        }
+        guard !setupCompleted else { return }
+        setupCompleted = true
         wireInterceptor()
         reconcileStubs()
         observeSystem()
@@ -39,7 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Opening the app again (Finder, Spotlight) opens Settings.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        SettingsController.shared.show()
+        if Localization.shared.hasChosen { SettingsController.shared.show() }
+        else { OnboardingController.shared.show() }
         return false
     }
 
@@ -232,6 +254,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startWhenTrusted() {
+        guard Localization.shared.hasChosen else {
+            OnboardingController.shared.show()
+            return
+        }
         // A permission missing (always, on a fresh install): walk through turning them on.
         if !Permissions.accessibility || !Permissions.checkAppManagement() {
             OnboardingController.shared.show()
@@ -263,23 +289,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Close Settings", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        appMenu.addItem(withTitle: L10n.text("Close Settings"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         appMenu.addItem(.separator())
         // No ⌘Q: quitting stops folders working, so it's a deliberate choice in Settings.
-        appMenu.addItem(withTitle: "Quit Dock Folders", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: L10n.text("Quit Dock Folders"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
         appItem.submenu = appMenu
         main.addItem(appItem)
 
         let editItem = NSMenuItem()
-        let edit = NSMenu(title: "Edit")
-        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        let edit = NSMenu(title: L10n.text("Edit"))
+        edit.addItem(withTitle: L10n.text("Undo"), action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: L10n.text("Redo"), action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         edit.addItem(.separator())
-        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(withTitle: L10n.text("Cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: L10n.text("Copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: L10n.text("Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: L10n.text("Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
         main.addItem(editItem)
 

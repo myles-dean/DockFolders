@@ -54,15 +54,36 @@ final class OnboardingController: NSObject, NSWindowDelegate {
 
     private var window: NSWindow?
     private let model = OnboardingModel()
+    private var languageObserver: NSObjectProtocol?
+
+    override init() {
+        super.init()
+        languageObserver = NotificationCenter.default.addObserver(forName: Localization.didChange, object: nil, queue: .main) { [weak self] _ in
+            self?.window?.title = L10n.text("Welcome to Dock Folders")
+            self?.resizeToContent()
+        }
+    }
+
+    func resizeToContent() {
+        DispatchQueue.main.async { [weak self] in
+            guard let window = self?.window, let view = window.contentView else { return }
+            view.layoutSubtreeIfNeeded()
+            window.setContentSize(view.fittingSize)
+        }
+    }
 
     var isShowing: Bool { window?.isVisible == true }
 
     func show() {
-        model.refresh(checkAppManagement: true)
+        model.choosingLanguage = !Localization.shared.hasChosen
+        if !model.choosingLanguage { model.refresh(checkAppManagement: true) }
         if window == nil {
-            let host = NSHostingController(rootView: OnboardingView(model: model) { [weak self] in self?.finish() })
+            let model = self.model
+            let host = NSHostingController(rootView: LocalizedRoot { [weak self] in
+                OnboardingView(model: model) { self?.finish() }
+            })
             let window = NSWindow(contentViewController: host)
-            window.title = "Welcome to Dock Folders"
+            window.title = L10n.text("Welcome to Dock Folders")
             window.titleVisibility = .hidden
             window.titlebarAppearsTransparent = true
             window.styleMask = [.titled, .closable, .fullSizeContentView]
@@ -89,7 +110,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
 
     // Back from System Settings: see whether App Management was turned on.
     func windowDidBecomeKey(_ notification: Notification) {
-        model.refresh(checkAppManagement: true)
+        if !model.choosingLanguage { model.refresh(checkAppManagement: true) }
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -98,6 +119,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
 }
 
 final class OnboardingModel: ObservableObject {
+    @Published var choosingLanguage = !Localization.shared.hasChosen
     @Published var accessibility = Permissions.accessibility
     @Published var appManagement = Permissions.appManagement
     /// Shown once App Management was asked for but still reads as off (a relaunch can help).
@@ -126,20 +148,50 @@ final class OnboardingModel: ObservableObject {
     }
 }
 
-private struct OnboardingView: View {
+struct OnboardingView: View {
     @ObservedObject var model: OnboardingModel
     let done: () -> Void
 
     var body: some View {
+        Group {
+            if model.choosingLanguage { languageSelection } else { permissions }
+        }
+        .onChange(of: model.choosingLanguage) { _, _ in OnboardingController.shared.resizeToContent() }
+    }
+
+    private var languageSelection: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "globe").font(.system(size: 48)).foregroundStyle(Color.accentColor)
+            Text(L10n.text("Choose Your Language")).font(.title2.weight(.semibold))
+            Text(L10n.text("Choose the language for Dock Folders. You can change it later in Settings."))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            LanguagePicker().pickerStyle(.menu)
+            Button(L10n.text("Continue")) {
+                // Set the step before notifying startup, which may bring this window forward.
+                model.choosingLanguage = false
+                Localization.shared.confirm()
+                model.refresh(checkAppManagement: true)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
+        }
+        .padding(32)
+        .frame(width: 460)
+    }
+
+    private var permissions: some View {
         VStack(spacing: 0) {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
                 .frame(width: 72, height: 72)
                 .padding(.top, 28)
-            Text("Welcome to Dock Folders")
+            Text(L10n.text("Welcome to Dock Folders"))
                 .font(.title2.weight(.semibold))
                 .padding(.top, 10)
-            Text("Folders for your Dock need two permissions. Turn each one on in System Settings, then come back here.")
+            Text(L10n.text("Folders for your Dock need two permissions. Turn each one on in System Settings, then come back here."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -147,14 +199,18 @@ private struct OnboardingView: View {
                 .padding(.top, 6)
                 .padding(.horizontal, 32)
 
+            LanguagePicker()
+                .padding(.top, 12)
+                .padding(.horizontal, 32)
+
             VStack(spacing: 10) {
-                PermissionRow(symbol: "accessibility", title: "Accessibility",
-                              detail: "Lets Dock Folders see the Dock and open a folder when you click it.",
+                PermissionRow(symbol: "accessibility", title: L10n.text("Accessibility"),
+                              detail: L10n.text("Lets Dock Folders see the Dock and open a folder when you click it."),
                               granted: model.accessibility) {
                     Permissions.requestAccessibility()
                 }
-                PermissionRow(symbol: "app.badge.checkmark", title: "App Management",
-                              detail: "Lets Dock Folders make and update the small app that stands for each folder in the Dock.",
+                PermissionRow(symbol: "app.badge.checkmark", title: L10n.text("App Management"),
+                              detail: L10n.text("Lets Dock Folders make and update the small app that stands for each folder in the Dock."),
                               granted: model.appManagement) {
                     Permissions.requestAppManagement()
                     model.askedForAppManagement = true
@@ -166,10 +222,10 @@ private struct OnboardingView: View {
 
             if model.askedForAppManagement && !model.appManagement {
                 HStack(spacing: 4) {
-                    Text("Already turned it on?").foregroundStyle(.secondary)
-                    Button("Check Again") { model.refresh(checkAppManagement: true) }.buttonStyle(.link)
-                    Text("or").foregroundStyle(.secondary)
-                    Button("Reopen Dock Folders") { Self.relaunch() }.buttonStyle(.link)
+                    Text(L10n.text("Already turned it on?")).foregroundStyle(.secondary)
+                    Button(L10n.text("Check Again")) { model.refresh(checkAppManagement: true) }.buttonStyle(.link)
+                    Text(L10n.text("or")).foregroundStyle(.secondary)
+                    Button(L10n.text("Reopen Dock Folders")) { Self.relaunch() }.buttonStyle(.link)
                 }
                 .font(.callout)
                 .padding(.top, 10)
@@ -177,9 +233,9 @@ private struct OnboardingView: View {
 
             Group {
                 if model.accessibility && model.appManagement {
-                    Text("All set. To make a folder, drag an app onto another app in the Dock and hold it there.")
+                    Text(L10n.text("All set. To make a folder, drag an app onto another app in the Dock and hold it there."))
                 } else {
-                    Text("Dock Folders keeps working in the background once these are on.")
+                    Text(L10n.text("Dock Folders keeps working in the background once these are on."))
                 }
             }
             .font(.callout)
@@ -190,7 +246,7 @@ private struct OnboardingView: View {
             .padding(.horizontal, 32)
 
             Button(action: done) {
-                Text("Get Started").frame(minWidth: 140)
+                Text(L10n.text("Get Started")).frame(minWidth: 140)
             }
             .controlSize(.large)
             .buttonStyle(.borderedProminent)
@@ -237,11 +293,11 @@ private struct PermissionRow: View {
             }
             Spacer(minLength: 8)
             if granted {
-                Label("On", systemImage: "checkmark.circle.fill")
+                Label(L10n.text("On"), systemImage: "checkmark.circle.fill")
                     .labelStyle(.titleAndIcon)
                     .foregroundStyle(.green)
             } else {
-                Button("Open Settings…", action: action)
+                Button(L10n.text("Open Settings…"), action: action)
             }
         }
         .padding(12)

@@ -110,7 +110,7 @@ enum OpenAppsInFolders {
         if on {
             guard readiness.ready else { return }
             if !helperInstalled || !helperCurrent {
-                guard runAsAdmin("install.sh", prompt: "Dock Folders needs to install a helper that keeps open apps in their folders.") else {
+                guard runAsAdmin("install.sh", prompt: L10n.text("Dock Folders needs to install a helper that keeps open apps in their folders.")) else {
                     changed()
                     return
                 }
@@ -131,7 +131,7 @@ enum OpenAppsInFolders {
     static func uninstallHelper() {
         guard helperInstalled else { return }
         let wasLoaded = isActive || loadedButUnhooked
-        guard runAsAdmin("uninstall.sh", prompt: "Dock Folders will remove its Dock helper.") else { return }
+        guard runAsAdmin("uninstall.sh", prompt: L10n.text("Dock Folders will remove its Dock helper.")) else { return }
         enabled = false
         syncList()
         if wasLoaded { restartDock() }
@@ -172,8 +172,8 @@ enum OpenAppsInFolders {
         var error: NSDictionary?
         NSAppleScript(source: source)?.executeAndReturnError(&error)
         if let error, (error[NSAppleScript.errorNumber] as? Int) != -128 {   // -128: cancelled
-            Prompt.error("Couldn’t set up the Dock helper.", NSError(domain: "DockFolders", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: error[NSAppleScript.errorMessage] as? String ?? "Unknown error"]))
+            Prompt.error(L10n.text("Couldn’t set up the Dock helper."), NSError(domain: "DockFolders", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: error[NSAppleScript.errorMessage] as? String ?? L10n.text("Unknown error")]))
         }
         return error == nil
     }

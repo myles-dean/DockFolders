@@ -8,7 +8,9 @@ enum FolderNaming {
         guard let first = categories.first else { return FolderActions.folderName }
         if categories.allSatisfy({ $0 == first }) { return title(of: first) }
         // Different categories that belong together get their group's name (as in the App Library).
-        if let group = groups[first], categories.allSatisfy({ groups[$0] == group }) { return group }
+        if let group = groups[first], categories.allSatisfy({ groups[$0] == group }) {
+            return L10n.text("categoryGroup." + group, fallback: group)
+        }
         // Otherwise, the category of the app it was dropped onto.
         return title(of: first)
     }
@@ -23,7 +25,8 @@ enum FolderNaming {
     }
 
     static func title(of category: String) -> String {
-        titles[category] ?? category.split(separator: "-").map { $0.capitalized }.joined(separator: " ")
+        let fallback = titles[category] ?? category.split(separator: "-").map { $0.capitalized }.joined(separator: " ")
+        return L10n.text("category." + category, fallback: fallback)
     }
 
     private static let titles: [String: String] = [

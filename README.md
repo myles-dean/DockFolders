@@ -5,6 +5,11 @@
 <h1 align="center">Dock Folders</h1>
 
 <p align="center">
+  <a href="README.md">🌐 English</a>
+  &nbsp;·&nbsp; <a href="README.zh-CN.md">🌐 简体中文</a>
+</p>
+
+<p align="center">
   <b>iPhone-style app folders for the macOS Dock.</b><br>
   Group your apps into folders right in the Dock, open them in a Liquid Glass popup, and keep your Dock tidy.<br>
   Free and open source, made for macOS 26 Tahoe.
@@ -62,7 +67,9 @@ starts at login.
   Windows, Hide, Quit, Force Quit). Folders get Edit Name, Add Apps, Empty Folder and Settings.
 - **Live Dock changes.** Folders join and leave the Dock without restarting it (no wallpaper or menu
   bar flash).
-- **Optional: open on hover.** Folders can open when the pointer rests on them.
+- **Optional: open on hover.** Folders can open when the pointer rests on them. In Settings → General, adjust the open and close delays independently from 0 to 2 seconds with continuous sliders or numeric input (default: 0.3 seconds each). The close delay also applies to folders opened by clicking; returning to the folder or its Dock tile cancels the pending close.
+- **App names on hover.** Point at an app inside a folder to show its name in a Dock-style glass callout above the icon, including while icons are magnified. Long names truncate to fit the visible screen area.
+- **English and simplified Chinese.** Choose a language before first-run permission setup, or switch instantly in Settings → General → Language. Chinese menu actions follow macOS terminology.
 - **Optional: open apps only in their folders.** For Macs with System Integrity Protection partly
   off ([details below](#optional-open-apps-only-in-their-folders)).
 - **Native and accessible.** Light, Dark and tinted appearances; Reduce Transparency makes it
@@ -72,8 +79,8 @@ starts at login.
 
 1. **[Download DockFolders.dmg](https://github.com/myles-dean/DockFolders/releases/latest/download/DockFolders.dmg)**
    and drag **Dock Folders** into **Applications**.
-2. Open it. A setup window walks you through two permissions in System Settings → Privacy &
-   Security:
+2. Open it and choose your language. The setup window then walks you through two permissions in
+   System Settings → Privacy & Security:
    - **Accessibility**, so it can see the Dock and open a folder when you click it.
    - **App Management**, because each folder in the Dock is a small app that Dock Folders makes and
      updates, and macOS only lets apps change other apps with this permission.
@@ -97,7 +104,7 @@ Requires **macOS 26 Tahoe** or later on a Mac with Apple silicon.
 | Move a Dock app into a folder | Drag it onto the folder and hold it there until the folder opens, then let go (on the folder or inside it). An app lives in one folder at a time, so this moves it out of any other |
 | Move an app from a folder to the Dock | Drag it out of the open folder and drop it on the Dock where you want it |
 | Add any app | Drag it from Finder or the Apps window onto the folder in the Dock, or use **+** above the app list in Settings |
-| Open / close a folder | Click it. Move off its sides or top (it closes at once, like moving off the Dock), move away for a moment, click outside, or launch an app to close it |
+| Open / close a folder | Click to open it. Moving away closes it after the configured close delay; click outside or launch an app to close it directly |
 | Turn pages | Two-finger swipe, or click the dots |
 | Rearrange apps in a folder | Drag an icon; hold it near the left/right edge to change pages |
 | Rename a folder, add apps | Right-click the folder → **Edit Name…** (opens Settings with the name ready to type) or **Add Apps…** (opens Settings with the app picker) |
@@ -105,12 +112,15 @@ Requires **macOS 26 Tahoe** or later on a Mac with Apple silicon.
 | Remove/reorder apps, show/hide a folder in the Dock, delete it, options | Right-click the folder → **Settings…** (or open Dock Folders from Spotlight) |
 | Take an app out | Right-click it in the folder → Options → **Remove from Folder** or **Move to Dock** |
 | Apps per page (3, 6, 9 or 16), names or running dots under apps, icon size, magnification | Settings → ⚙︎ General → **Inside Folders** |
+| Adjust hover opening and open/close delays | Settings → ⚙︎ General → **Open folders on hover**, **Open delay** and **Close delay** |
+| Change the interface language | Settings → ⚙︎ General → **Language**: System Default, English or 简体中文 |
 | Rearrange folders in the Dock | Drag them like any other Dock icon |
 
 
 Settings opens from a folder's right-click menu, or by opening Dock Folders again from Spotlight or
-Applications. Under ⚙︎ General you'll find apps per page, names or running dots under icons, icon
-size, magnification, **Open folders on hover**, and the optional feature below.
+Applications. Under ⚙︎ General you'll find language, apps per page, names or running dots under icons,
+icon size, magnification, **Open folders on hover**, **Open delay**, **Close delay**, and the optional
+feature below.
 
 ## FAQ
 

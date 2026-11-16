@@ -33,6 +33,10 @@ final class FolderPanelModel: ObservableObject {
     @Published var magnificationAmount: CGFloat = 0
     /// Whether the pointer is actually over the popup (names show only then).
     @Published var hovering = false
+    /// Actual pointer for icon hit testing; magnification's pointer is deliberately smoothed.
+    @Published var hoverPoint: CGPoint?
+    /// Visible part of the window in top-left content coordinates, excluding screen edges.
+    @Published var visibleContentBounds: CGRect?
     /// The Dock's name label for this folder is showing under the popup's edge (while the pointer
     /// is on the folder's tile, or while an auto-hiding Dock is held up), and how wide it is.
     @Published var labelUnderneath = false
@@ -186,6 +190,20 @@ struct FolderMetrics: Equatable {
         return CGPoint(x: icon.x, y: icon.y - iconSize / 2 + cellHeight / 2)
     }
 
+    /// Hit-test the same scaled icon frames that PageGrid draws, not their unmagnified slots.
+    func hoveredIcon(count: Int, point: CGPoint, pointer: CGPoint?, amount: CGFloat) -> (index: Int, frame: CGRect)? {
+        let layout = magnifiedLayout(count: count, pointer: pointer, amount: amount)
+        return layout.enumerated().compactMap { index, item -> (index: Int, frame: CGRect)? in
+            let frame = CGRect(x: item.center.x - iconSize * item.scale / 2,
+                               y: item.center.y - cellHeight * item.scale / 2,
+                               width: iconSize * item.scale, height: iconSize * item.scale)
+            return frame.contains(point) ? (index, frame) : nil
+        }.min { a, b in
+            hypot(a.frame.midX - point.x, a.frame.midY - point.y)
+                < hypot(b.frame.midX - point.x, b.frame.midY - point.y)
+        }
+    }
+
     /// Dock-style magnification for one page: icons grow toward the pointer and push their
     /// neighbours apart (like the Dock's row spreading), with the spot under the pointer staying put.
     /// Returns each icon's centre and scale, in body coordinates.
@@ -327,6 +345,8 @@ struct FolderPanelView: View {
                 .padding(.top, FolderMetrics.marginTop)
                 .padding(.bottom, FolderMetrics.marginBottom)
 
+            appNameLabel(m, size: size)
+
             // The icon being dragged, lifted above everything and free to leave the folder's edges.
             if let dragging = model.dragging, !model.dragOutside, let app = model.apps.first(where: { $0.id == dragging.id }) {
                 Image(nsImage: app.icon)
@@ -340,6 +360,31 @@ struct FolderPanelView: View {
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func appNameLabel(_ m: FolderMetrics, size: CGSize) -> some View {
+        let pageApps = apps(on: model.page)
+        if model.isPresented, model.hovering, model.isSettled, model.dragging == nil, !model.dropTargeted,
+           let point = model.hoverPoint,
+           let hit = m.hoveredIcon(count: pageApps.count, point: point, pointer: model.pointer,
+                                   amount: model.magnificationAmount),
+           !pageApps[hit.index].isPreview {
+            let app = pageApps[hit.index]
+            let bounds = model.visibleContentBounds ?? CGRect(origin: .zero, size: size).insetBy(dx: 8, dy: 8)
+            let width = min(DockLabel.width(for: app.name), bounds.width)
+            let height = DockLabel.height + DockLabel.pointerHeight
+            let iconX = bodyOrigin.x + hit.frame.midX
+            let x = min(max(iconX, bounds.minX + width / 2), bounds.maxX - width / 2)
+            // Anchor to the visible artwork's top edge, including its magnification.
+            let artworkTop = bodyOrigin.y + hit.frame.minY + hit.frame.height * 100 / 1024
+            let y = max(bounds.minY + height / 2, artworkTop - 4 - height / 2)
+            NameLabel(text: app.name, width: width,
+                      arrowPosition: min(max(iconX - x + width / 2, 16), width - 16))
+                .position(x: x, y: y)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     /// Top-left of the popup body inside this view.
@@ -531,16 +576,19 @@ private struct AppCell: View {
 private struct NameLabel: View {
     let text: String
     let width: CGFloat
+    let arrowPosition: CGFloat
 
     var body: some View {
         Text(text)
             .font(Font(DockLabel.font))
             .foregroundStyle(.primary)
             .lineLimit(1)
+            .truncationMode(.middle)
+            .padding(.horizontal, DockLabel.horizontalPadding)
             .frame(width: width, height: DockLabel.height)
             .padding(.bottom, DockLabel.pointerHeight)
             .dockGlass(in: CalloutShape(
-                edge: .bottom, arrowPosition: width / 2, cornerRadius: DockLabel.height / 2,
+                edge: .bottom, arrowPosition: arrowPosition, cornerRadius: DockLabel.height / 2,
                 arrowWidth: DockLabel.pointerWidth, arrowHeight: DockLabel.pointerHeight
             ))
             .fixedSize()

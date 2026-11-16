@@ -29,6 +29,19 @@ final class SettingsModel: ObservableObject {
     }
     @Published var magnifies = FolderPrefs.magnifies { didSet { FolderPrefs.magnifies = magnifies } }
     @Published var opensOnHover = FolderPrefs.opensOnHover { didSet { FolderPrefs.opensOnHover = opensOnHover } }
+    @Published private(set) var hoverDelay = FolderPrefs.hoverDelay
+    @Published private(set) var closeDelay = FolderPrefs.closeDelay
+
+    func setHoverDelay(_ value: Double) {
+        hoverDelay = FolderPrefs.clampedHoverDelay(value)
+        FolderPrefs.hoverDelay = hoverDelay
+    }
+
+    func setCloseDelay(_ value: Double) {
+        closeDelay = FolderPrefs.clampedHoverDelay(value)
+        FolderPrefs.closeDelay = closeDelay
+    }
+
     @Published var magnification = Double(FolderPrefs.magnification) {
         didSet { FolderPrefs.magnification = CGFloat(magnification) }
     }
@@ -48,7 +61,8 @@ final class SettingsModel: ObservableObject {
 
     private var observers: [NSObjectProtocol] = []
 
-    init() {
+    init(observingChanges: Bool = true) {
+        guard observingChanges else { return }
         reload()
         for name in [FolderStore.didChange, DockSettle.didChange] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
@@ -131,7 +145,7 @@ struct SettingsView: View {
             // Drawn by hand (not a List) so rows keep a normal height with real space between them.
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Folders")
+                    Text(L10n.text("Folders"))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .padding(.leading, 8)
@@ -166,14 +180,14 @@ struct SettingsView: View {
         .toolbar(removing: .title)
         .frame(minWidth: 640, idealWidth: 700, minHeight: 440, idealHeight: 520)
         .alert(
-            "Delete “\(model.confirmingDelete?.name ?? "Folder")”?",
+            L10n.format("Delete “%@”?", model.confirmingDelete?.name ?? L10n.text("Folder")),
             isPresented: Binding(get: { model.confirmingDelete != nil }, set: { if !$0 { model.confirmingDelete = nil } }),
             presenting: model.confirmingDelete
         ) { folder in
-            Button("Delete", role: .destructive) { model.confirmDelete(folder) }
-            Button("Cancel", role: .cancel) {}
+            Button(L10n.text("Delete"), role: .destructive) { model.confirmDelete(folder) }
+            Button(L10n.text("Cancel"), role: .cancel) {}
         } message: { _ in
-            Text("The apps inside stay installed. Only the folder is removed from your Dock.")
+            Text(L10n.text("The apps inside stay installed. Only the folder is removed from your Dock."))
         }
     }
 }
@@ -218,12 +232,12 @@ private struct AddRemoveBar: View {
                 Button { model.addFolder() } label: {
                     Image(systemName: "plus").frame(width: 26, height: 22)
                 }
-                .help("New Folder")
+                .help(L10n.text("New Folder"))
                 Divider().frame(height: 14)
                 Button { model.deleteSelected() } label: {
                     Image(systemName: "minus").frame(width: 26, height: 22)
                 }
-                .help("Delete Folder")
+                .help(L10n.text("Delete Folder"))
                 .disabled(model.selectedFolder == nil)
                 Spacer()
                 Button { model.selection = .general } label: {
@@ -231,7 +245,7 @@ private struct AddRemoveBar: View {
                         .foregroundStyle(model.selection == .general ? Color.accentColor : Color.secondary)
                         .frame(width: 26, height: 22)
                 }
-                .help("General")
+                .help(L10n.text("General"))
             }
             .buttonStyle(.borderless)
             .padding(.horizontal, 6)
@@ -271,7 +285,7 @@ private struct FolderDetailView: View {
                             .frame(width: 56, height: 56)
                         VStack(alignment: .leading, spacing: 3) {
                             // Not selected when the page opens: click it to edit.
-                            TextField("Name", text: $name, prompt: Text("Folder"))
+                            TextField(L10n.text("Name"), text: $name, prompt: Text(L10n.text("Folder")))
                                 .labelsHidden()
                                 .textFieldStyle(.plain)
                                 .font(.title3.weight(.semibold))
@@ -285,22 +299,22 @@ private struct FolderDetailView: View {
                             } else if model.renamesWaiting.contains(folderID) {
                                 // The Dock only picks up names when it restarts; that happens unseen.
                                 HStack(spacing: 6) {
-                                    Text("The Dock shows this name after your Mac next locks or sleeps.")
-                                    Button("Update Now") { DockSettle.apply() }
+                                    Text(L10n.text("The Dock shows this name after your Mac next locks or sleeps."))
+                                    Button(L10n.text("Update Now")) { DockSettle.apply() }
                                         .buttonStyle(.link)
-                                        .help("Restarts the Dock now (the screen flickers for a moment)")
+                                        .help(L10n.text("Restarts the Dock now (the screen flickers for a moment)"))
                                 }
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             } else {
-                                Text("Shown when you point at it in the Dock")
+                                Text(L10n.text("Shown when you point at it in the Dock"))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
                         Spacer(minLength: 0)
                         if isEdited(folder) {
-                            Button("Save") { save() }
+                            Button(L10n.text("Save")) { save() }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
                                 .keyboardShortcut(.defaultAction)
@@ -313,18 +327,18 @@ private struct FolderDetailView: View {
                         get: { model.inDock.contains(folderID) },
                         set: { model.setInDock(folderID, $0) }
                     )) {
-                        Text("Show in Dock")
+                        Text(L10n.text("Show in Dock"))
                         if folder.apps.isEmpty {
-                            Text("Add an app first. Empty folders stay out of the Dock.")
+                            Text(L10n.text("Add an app first. Empty folders stay out of the Dock."))
                         }
                     }
                     .disabled(folder.apps.isEmpty)
-                    .accessibilityLabel("Show in Dock")
+                    .accessibilityLabel(L10n.text("Show in Dock"))
                 }
 
                 Section {
                     if order.isEmpty {
-                        Text("No apps yet.")
+                        Text(L10n.text("No apps yet."))
                             .foregroundStyle(.secondary)
                     } else {
                         ReorderableApps(order: $order) { FolderActions.setAppOrder(folderID, $0) } remove: {
@@ -333,16 +347,16 @@ private struct FolderDetailView: View {
                     }
                 } header: {
                     HStack {
-                        Text("Apps")
+                        Text(L10n.text("Apps"))
                         Spacer()
                         Button { FolderActions.chooseApps(for: folderID) } label: {
                             Image(systemName: "plus")
                         }
                         .buttonStyle(.borderless)
-                        .help("Add Apps")
+                        .help(L10n.text("Add Apps"))
                     }
                 } footer: {
-                    Text("Drag to reorder. The first four show on the folder’s icon.")
+                    Text(L10n.text("Drag to reorder. The first four show on the folder’s icon."))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -375,7 +389,7 @@ private struct FolderDetailView: View {
         guard let folder = model.folder(folderID), isEdited(folder) else { return }
         FolderActions.rename(folderID, to: name)
         editingName = false
-        savedNote = "Saved"
+        savedNote = L10n.text("Saved")
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { savedNote = nil }
     }
 }
@@ -478,7 +492,7 @@ private struct AppRow: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Remove from Folder")
+            .help(L10n.text("Remove from Folder"))
         }
     }
 }
@@ -488,79 +502,93 @@ private struct AppRow: View {
 private struct GeneralView: View {
     @ObservedObject var model: SettingsModel
 
+    private var hoverDelay: Binding<Double> {
+        Binding(get: { model.hoverDelay }, set: { model.setHoverDelay($0) })
+    }
+
     var body: some View {
         Form {
+            Section {
+                LanguagePicker()
+            }
             if model.dockChangesWaiting {
                 Section {
                     LabeledContent {
-                        Button("Update Now") { DockSettle.apply() }
+                        Button(L10n.text("Update Now")) { DockSettle.apply() }
                     } label: {
-                        Text("Dock changes waiting")
-                        Text("New names (and apps put back in the Dock while closed) reach the Dock when your Mac next locks or sleeps, so you never see it restart. Update Now restarts it right away.")
+                        Text(L10n.text("Dock changes waiting"))
+                        Text(L10n.text("New names (and apps put back in the Dock while closed) reach the Dock when your Mac next locks or sleeps, so you never see it restart. Update Now restarts it right away."))
                     }
                 }
             }
             Section {
-                Toggle("Open at login", isOn: Binding(get: { model.openAtLogin }, set: { model.setOpenAtLogin($0) }))
+                Toggle(L10n.text("Open at login"), isOn: Binding(get: { model.openAtLogin }, set: { model.setOpenAtLogin($0) }))
                 Toggle(isOn: $model.opensOnHover) {
-                    Text("Open folders on hover")
-                    Text("A folder opens when the pointer rests on it in the Dock, without a click.")
+                    Text(L10n.text("Open folders on hover"))
+                    Text(L10n.text("A folder opens when the pointer rests on it in the Dock, without a click."))
                 }
-                LabeledContent("Accessibility") {
+                DelaySettingRow(title: L10n.text("Open delay"),
+                                explanation: L10n.text("Wait 0–2 seconds before opening on hover. Set to 0 for no delay."),
+                                value: hoverDelay)
+                    .disabled(!model.opensOnHover)
+                DelaySettingRow(title: L10n.text("Close delay"),
+                                explanation: L10n.text("Wait 0–2 seconds after the pointer leaves. Set to 0 for no delay."),
+                                value: Binding(get: { model.closeDelay }, set: { model.setCloseDelay($0) }))
+                LabeledContent(L10n.text("Accessibility")) {
                     if model.accessibilityAllowed {
-                        Label("Allowed", systemImage: "checkmark.circle.fill")
+                        Label(L10n.text("Allowed"), systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.secondary)
                     } else {
-                        Button("Open Privacy Settings…") { Permissions.requestAccessibility() }
+                        Button(L10n.text("Open Privacy Settings…")) { Permissions.requestAccessibility() }
                     }
                 }
-                LabeledContent("App Management") {
+                LabeledContent(L10n.text("App Management")) {
                     if model.appManagementAllowed {
-                        Label("Allowed", systemImage: "checkmark.circle.fill")
+                        Label(L10n.text("Allowed"), systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.secondary)
                     } else {
-                        Button("Open Privacy Settings…") { Permissions.requestAppManagement() }
+                        Button(L10n.text("Open Privacy Settings…")) { Permissions.requestAppManagement() }
                     }
                 }
             }
 
             Section {
-                Picker("Apps per page", selection: $model.appsPerPage) {
+                Picker(L10n.text("Apps per page"), selection: $model.appsPerPage) {
                     ForEach(FolderPrefs.pageSizes, id: \.self) { size in
                         let grid = FolderMetrics.grid(forPageSize: size)
                         Text("\(size)  (\(grid.columns) × \(grid.rows))").tag(size)
                     }
                 }
-                Picker("Under each app", selection: $model.showsNames) {
-                    Text("Running Indicator").tag(false)
-                    Text("Name").tag(true)
+                Picker(L10n.text("Under each app"), selection: $model.showsNames) {
+                    Text(L10n.text("Running Indicator")).tag(false)
+                    Text(L10n.text("Name")).tag(true)
                 }
                 Slider(value: $model.iconSize,
                        in: Double(FolderPrefs.iconSizeRange.lowerBound)...Double(max(FolderPrefs.iconSizeRange.upperBound, FolderPrefs.dockIconSize))) {
-                    Text("Icon size")
+                    Text(L10n.text("Icon size"))
                 } minimumValueLabel: {
-                    Text("Small")
+                    Text(L10n.text("Small"))
                 } maximumValueLabel: {
-                    Text("Large")
+                    Text(L10n.text("Large"))
                 }
-                Toggle("Magnification", isOn: $model.magnifies)
+                Toggle(L10n.text("Magnification"), isOn: $model.magnifies)
                 if model.magnifies {
                     Slider(value: $model.magnification,
                            in: Double(FolderPrefs.magnificationRange.lowerBound)...Double(FolderPrefs.magnificationRange.upperBound)) {
-                        Text("Strength")
+                        Text(L10n.text("Strength"))
                     } minimumValueLabel: {
-                        Text("Subtle")
+                        Text(L10n.text("Subtle"))
                     } maximumValueLabel: {
-                        Text("Strong")
+                        Text(L10n.text("Strong"))
                     }
                 }
             } header: {
-                Text("Inside Folders")
+                Text(L10n.text("Inside Folders"))
             } footer: {
                 HStack {
-                    Text(model.usesDockIconSize ? "Icons are the same size as the Dock’s." : "Icons are a different size from the Dock’s.")
+                    Text(model.usesDockIconSize ? L10n.text("Icons are the same size as the Dock’s.") : L10n.text("Icons are a different size from the Dock’s."))
                     if !model.usesDockIconSize {
-                        Button("Match Dock") { model.matchDockIconSize() }
+                        Button(L10n.text("Match Dock")) { model.matchDockIconSize() }
                             .buttonStyle(.link)
                     }
                 }
@@ -569,17 +597,17 @@ private struct GeneralView: View {
 
             OpenAppsSection()
 
-            Section("Tips") {
-                Tip(symbol: "cursorarrow.click.2", text: "Click a folder in the Dock to open it; drag icons inside to rearrange them.")
-                Tip(symbol: "square.and.arrow.down", text: "Drag an app from the Dock onto a folder and hold it there: the folder opens; let go to put the app in. Apps from Finder can go straight onto the folder.")
-                Tip(symbol: "dock.arrow.down.rectangle", text: "Drag an app out of an open folder and onto the Dock to put it back in the Dock.")
-                Tip(symbol: "folder.badge.plus", text: "Drag an app onto another app in the Dock and hold it there until Create Folder appears; let go to make a folder of the two, named after what they are.")
+            Section(L10n.text("Tips")) {
+                Tip(symbol: "cursorarrow.click.2", text: L10n.text("Click a folder in the Dock to open it; drag icons inside to rearrange them."))
+                Tip(symbol: "square.and.arrow.down", text: L10n.text("Drag an app from the Dock onto a folder and hold it there: the folder opens; let go to put the app in. Apps from Finder can go straight onto the folder."))
+                Tip(symbol: "dock.arrow.down.rectangle", text: L10n.text("Drag an app out of an open folder and onto the Dock to put it back in the Dock."))
+                Tip(symbol: "folder.badge.plus", text: L10n.text("Drag an app onto another app in the Dock and hold it there until Create Folder appears; let go to make a folder of the two, named after what they are."))
             }
 
             Section {
-                Button("Quit Dock Folders", role: .destructive) { NSApp.terminate(nil) }
+                Button(L10n.text("Quit Dock Folders"), role: .destructive) { NSApp.terminate(nil) }
             } footer: {
-                Text("Dock Folders runs in the background and starts at login.")
+                Text(L10n.text("Dock Folders runs in the background and starts at login."))
                     .foregroundStyle(.secondary)
             }
         }
@@ -630,7 +658,8 @@ final class SettingsController: NSObject, NSWindowDelegate {
         }
 
         if window == nil {
-            let host = NSHostingController(rootView: SettingsView(model: model))
+            let model = self.model
+            let host = NSHostingController(rootView: LocalizedRoot { SettingsView(model: model) })
             let window = NSWindow(contentViewController: host)
             window.title = "Dock Folders"   // for the Window menu; not shown
             window.titleVisibility = .hidden
