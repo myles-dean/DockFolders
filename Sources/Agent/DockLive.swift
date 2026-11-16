@@ -13,11 +13,9 @@ private let log = Logger(subsystem: "com.mylesdean.DockFolders", category: "Dock
 /// ordinary running app's, which "Keep in Dock" keeps. They leave with "Remove from Dock" (and the
 /// Dock's poof); letting an open app's tile go instead would show its running dot first.
 enum DockLive {
-    private static let dockBundle = Bundle(path: "/System/Library/CoreServices/Dock.app")
-
     /// The Dock's own menu titles, in the Mac's language.
     private static func localized(_ key: String, _ english: String) -> String {
-        dockBundle?.localizedString(forKey: key, value: english, table: "DockMenus") ?? english
+        DockMenuLocalization.title(key, fallback: english)
     }
 
     private static let optionsTitle = localized("OPTIONS", "Options")
