@@ -16,6 +16,12 @@ enum FolderPrefs {
         set { defaults.set(newValue, forKey: "openOnHover"); FolderHover.shared.update() }
     }
 
+    /// Allow opening folders in Mission Control and App Exposé. Off by default.
+    static var opensInOverview: Bool {
+        get { defaults.bool(forKey: "openInOverview") }
+        set { defaults.set(newValue, forKey: "openInOverview") }
+    }
+
     /// How many apps fit on one page of a folder: 3, 6, 9 or 16.
     static let pageSizes = [3, 6, 9, 16]
     static var appsPerPage: Int {

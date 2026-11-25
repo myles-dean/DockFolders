@@ -15,6 +15,7 @@ final class EventInterceptor {
     var onFolderMenu: ((String, DockItem) -> Void)?
     var onOutsideClick: (() -> Void)?
     var onMenuOutsideClick: (() -> Void)?
+    var onOverviewPanelClick: ((String, CGPoint, CGPoint) -> Void)?
     /// Dragging an app's tile (the Dock does the dragging; we only watch). Points are global, top-left origin.
     var onAppDragBegan: ((DockItem) -> Void)?
     var onAppDragMoved: ((CGPoint) -> Void)?
@@ -27,6 +28,7 @@ final class EventInterceptor {
     private let lock = NSLock()
     private var stubPaths: [String: String] = [:]   // normalised stub path → folder id
     private var panelFrame: CGRect?                  // global, top-left origin
+    private var overviewPanel: (folderID: String, frame: CGRect)?
     private var menuFrames: [CGRect] = []            // open glass menus, same space
     private var screenFrames: [CGRect] = []          // global, top-left origin
 
@@ -34,6 +36,7 @@ final class EventInterceptor {
     private var pending: (event: CGEvent, folderID: String, item: DockItem, start: CGPoint)?
     private var swallowLeftUp = false
     private var swallowRightUp = false
+    private var overviewPress: (folderID: String, start: CGPoint, dragged: Bool)?
     private var appDrag: (item: DockItem, start: CGPoint, active: Bool)?
 
     var isRunning: Bool { tap != nil }
@@ -50,7 +53,12 @@ final class EventInterceptor {
         lock.withLock { stubPaths = map }
     }
 
-    func setPanelFrame(_ frame: CGRect?) { lock.withLock { panelFrame = frame } }
+    func setPanelFrame(_ frame: CGRect?, overviewFolderID: String? = nil, overviewBody: CGRect = .zero) {
+        lock.withLock {
+            panelFrame = frame
+            overviewPanel = overviewFolderID.map { ($0, overviewBody) }
+        }
+    }
     func setMenuFrames(_ frames: [CGRect]) { lock.withLock { menuFrames = frames } }
 
     func updateScreens() {
@@ -105,6 +113,23 @@ final class EventInterceptor {
 
         let location = event.location
 
+        // The overview takes mouse input even over a visible third-party panel. Claim a
+        // primary click that begins in our popup and deliver it to the folder on mouse-up.
+        if let press = overviewPress {
+            switch type {
+            case .leftMouseDragged:
+                if hypot(location.x - press.start.x, location.y - press.start.y) > 5 { overviewPress?.dragged = true }
+                return nil
+            case .leftMouseUp:
+                overviewPress = nil
+                if !press.dragged { main { self.onOverviewPanelClick?(press.folderID, press.start, location) } }
+                return nil
+            case .leftMouseDown:
+                overviewPress = nil
+            default: break
+            }
+        }
+
         // An app's tile being dragged: the Dock owns the drag, wherever it goes (even over the
         // popup); we only watch it.
         if var drag = appDrag, type == .leftMouseDragged || type == .leftMouseUp {
@@ -123,7 +148,7 @@ final class EventInterceptor {
             return pass
         }
 
-        let (panel, menus) = lock.withLock { (panelFrame, menuFrames) }
+        let (panel, overview, menus) = lock.withLock { (panelFrame, overviewPanel, menuFrames) }
 
         // While one of our menus is open, a click outside it only dismisses it (like a real menu).
         if !menus.isEmpty {
@@ -137,14 +162,20 @@ final class EventInterceptor {
         }
         if type == .leftMouseUp, swallowLeftUp { swallowLeftUp = false; return nil }
         if type == .rightMouseUp, swallowRightUp { swallowRightUp = false; return nil }
+        if type == .leftMouseDown, !event.flags.contains(.maskControl),
+           let overview, overview.frame.contains(location) {
+            overviewPress = (overview.folderID, location, false)
+            return nil
+        }
         if let panel, panel.contains(location) { return pass }   // clicks inside the popup
 
         switch type {
         case .leftMouseDown:
             appDrag = nil
-            if nearDockEdge(location), let item = DockAX.shared.item(at: location) {
+            if nearDockEdge(location), let item = DockAX.shared.itemForOpening(at: location) {
                 if let id = folderID(for: item) {
                     if event.flags.contains(.maskControl) {          // control-click = right-click
+                        guard !DockAX.shared.overviewIsActive else { return pass }
                         swallowLeftUp = true
                         main { self.onFolderMenu?(id, item) }
                     } else if let copy = event.copy() {
@@ -183,7 +214,7 @@ final class EventInterceptor {
             }
 
         case .rightMouseDown:
-            if let (id, item) = folderHit(at: location) {
+            if let (id, item) = folderHit(at: location), !DockAX.shared.overviewIsActive {
                 swallowRightUp = true
                 main { self.onFolderMenu?(id, item) }
                 return nil

@@ -142,6 +142,20 @@ struct FolderMetrics: Equatable {
     var padding: CGFloat { visibleGap - artworkInset + magnificationRoom }
     var pitch: CGFloat { iconSize + gap }
     var dotsHeight: CGFloat { pages > 1 ? 16 : 0 }
+    static let pageDotSize: CGFloat = 6
+    static let pageDotHitSize: CGFloat = 14
+    static let pageDotSpacing: CGFloat = 8
+
+    func pageDot(at point: CGPoint) -> Int? {
+        guard pages > 1 else { return nil }
+        let size = Self.pageDotHitSize
+        let pitch = Self.pageDotSize + Self.pageDotSpacing
+        let left = (bodyWidth - (CGFloat(pages - 1) * pitch + size)) / 2
+        let top = stripHeight + (dotsHeight - size) / 2
+        return (0..<pages).first { page in
+            CGRect(x: left + CGFloat(page) * pitch, y: top, width: size, height: size).contains(point)
+        }
+    }
 
     // App names (when shown) sit just under the icon artwork.
     var labelFontSize: CGFloat { min(max((iconSize * 0.2).rounded(), 10), 13) }
@@ -184,6 +198,20 @@ struct FolderMetrics: Equatable {
     func cellCenter(_ index: Int) -> CGPoint {
         let icon = iconCenter(index)
         return CGPoint(x: icon.x, y: icon.y - iconSize / 2 + cellHeight / 2)
+    }
+
+    /// Hit-test the same scaled icon frames that PageGrid draws, not their unmagnified slots.
+    func hoveredIcon(count: Int, point: CGPoint, pointer: CGPoint?, amount: CGFloat) -> (index: Int, frame: CGRect)? {
+        let layout = magnifiedLayout(count: count, pointer: pointer, amount: amount)
+        return layout.enumerated().compactMap { index, item -> (index: Int, frame: CGRect)? in
+            let frame = CGRect(x: item.center.x - iconSize * item.scale / 2,
+                               y: item.center.y - cellHeight * item.scale / 2,
+                               width: iconSize * item.scale, height: iconSize * item.scale)
+            return frame.contains(point) ? (index, frame) : nil
+        }.min { a, b in
+            hypot(a.frame.midX - point.x, a.frame.midY - point.y)
+                < hypot(b.frame.midX - point.x, b.frame.midY - point.y)
+        }
     }
 
     /// Dock-style magnification for one page: icons grow toward the pointer and push their
@@ -554,13 +582,14 @@ private struct PageDots: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: FolderMetrics.pageDotSpacing) {
             ForEach(0..<count, id: \.self) { index in
                 Circle()
                     .fill(scheme == .dark ? Color.white : Color.black)
                     .opacity(index == current ? 0.85 : 0.25)
-                    .frame(width: 6, height: 6)
-                    .overlay(ClickCatcher(onPressChanged: { _ in }, onClick: { select(index) }).frame(width: 14, height: 14))
+                    .frame(width: FolderMetrics.pageDotSize, height: FolderMetrics.pageDotSize)
+                    .overlay(ClickCatcher(onPressChanged: { _ in }, onClick: { select(index) })
+                        .frame(width: FolderMetrics.pageDotHitSize, height: FolderMetrics.pageDotHitSize))
             }
         }
         .animation(.smooth(duration: 0.2), value: current)
