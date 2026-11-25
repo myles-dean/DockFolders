@@ -149,6 +149,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let interceptor = EventInterceptor.shared
         interceptor.update(folders: store.folders)
         interceptor.onFolderClick = { id, item in FolderPanelController.shared.toggle(folderID: id, item: item) }
+        interceptor.onOverviewPanelClick = { id, start, end in
+            FolderPanelController.shared.clickInOverview(folderID: id, from: start, to: end)
+        }
         interceptor.onFolderMenu = { id, item in DockMenus.show(DockMenus.folderEntries(folderID: id), at: item) }
         interceptor.onOutsideClick = { FolderPanelController.shared.close() }
         interceptor.onAppDragBegan = { DockDragCollector.shared.began($0) }

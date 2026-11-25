@@ -29,6 +29,12 @@ final class SettingsModel: ObservableObject {
     }
     @Published var magnifies = FolderPrefs.magnifies { didSet { FolderPrefs.magnifies = magnifies } }
     @Published var opensOnHover = FolderPrefs.opensOnHover { didSet { FolderPrefs.opensOnHover = opensOnHover } }
+    @Published var opensInOverview = FolderPrefs.opensInOverview {
+        didSet {
+            FolderPrefs.opensInOverview = opensInOverview
+            FolderPanelController.shared.updateOverviewPreference()
+        }
+    }
     @Published var magnification = Double(FolderPrefs.magnification) {
         didSet { FolderPrefs.magnification = CGFloat(magnification) }
     }
@@ -505,6 +511,10 @@ private struct GeneralView: View {
                 Toggle(isOn: $model.opensOnHover) {
                     Text("Open folders on hover")
                     Text("A folder opens when the pointer rests on it in the Dock, without a click.")
+                }
+                Toggle(isOn: $model.opensInOverview) {
+                    Text("Open folders in Mission Control and App Exposé")
+                    Text("Click to open. Hovering follows the setting above.")
                 }
                 LabeledContent("Accessibility") {
                     if model.accessibilityAllowed {

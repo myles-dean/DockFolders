@@ -17,7 +17,12 @@ final class FolderPanel: NSPanel {
         becomesKeyOnlyIfNeeded = true
         animationBehavior = .none
         isReleasedWhenClosed = false
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+        setStaysVisibleInOverview(false)
+    }
+
+    func setStaysVisibleInOverview(_ visible: Bool) {
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle,
+                              visible ? .stationary : .transient]
     }
 
     // Never actually key (the Dock keeps keyboard focus so it stays on screen), but drawn as if it
@@ -44,6 +49,7 @@ final class FolderPanelController: NSObject {
 
     private(set) var folderID: String?
     private var holdingDock = false
+    private var overviewActive = false
     private var observers: [NSObjectProtocol] = []
     private var runningObserver: NSObjectProtocol?
     private var displayLink: CADisplayLink?
@@ -102,6 +108,13 @@ final class FolderPanelController: NSObject {
 
     // MARK: Showing
 
+    func updateOverviewPreference() {
+        guard isOpen else { return }
+        let enabled = FolderPrefs.opensInOverview
+        if !enabled, overviewActive { close(animated: false) }
+        panel.setStaysVisibleInOverview(enabled)
+    }
+
     func toggle(folderID: String, item: DockItem?) {
         FolderHover.shared.noteOpened(folderID)
         if self.folderID == folderID {
@@ -113,12 +126,16 @@ final class FolderPanelController: NSObject {
     }
 
     func show(folderID: String, item: DockItem?) {
-        guard let folder = FolderStore.shared.folder(id: folderID),
+        let inOverview = DockAX.shared.overviewIsActive
+        let allowsOverview = FolderPrefs.opensInOverview
+        guard !inOverview || allowsOverview,
+              let folder = FolderStore.shared.folder(id: folderID),
               let item = item ?? DockAX.shared.item(for: FolderActions.dockURL(for: folder)) else { return }
         if isOpen { close(animated: false) }
         stopFollowingTile()
+        overviewActive = inOverview
         // Clicking a Dock icon closes any Dock menu that's open; so does opening a folder.
-        DockAX.shared.dismissMenus()
+        if !overviewActive { DockAX.shared.dismissMenus() }
 
         self.folderID = folderID
         dockPitch = DockAX.shared.restingPitch()
@@ -147,11 +164,12 @@ final class FolderPanelController: NSObject {
         tileFrame = item.frame
         refreshBarFrame()
         // Opened without the pointer on the Dock (e.g. from the stub): hold it right away.
-        if CoreDock.autoHideEnabled, !isOverDock(NSEvent.mouseLocation) { holdDock() }
+        if !overviewActive, CoreDock.autoHideEnabled, !isOverDock(NSEvent.mouseLocation) { holdDock() }
 
         position()
         model.isPresented = false
-        panel.level = .popUpMenu
+        panel.setStaysVisibleInOverview(allowsOverview)
+        panel.level = overviewActive ? .screenSaver : .popUpMenu
         panel.alphaValue = 1
         panel.orderFrontRegardless()
         DispatchQueue.main.async {
@@ -185,7 +203,7 @@ final class FolderPanelController: NSObject {
         heldForDrop = false
         // If the pointer isn't on an auto-hiding Dock, the Dock is (about to be) sliding away:
         // go with it, riding down on the tile and fading, rather than shrinking in place.
-        let withDock = animated && CoreDock.autoHideEnabled && !isOverDock(NSEvent.mouseLocation)
+        let withDock = animated && !overviewActive && CoreDock.autoHideEnabled && !isOverDock(NSEvent.mouseLocation)
         folderID = nil
         GlassMenuController.shared.closeAll()
         stopWatching(keepFollowingTile: withDock)
@@ -257,6 +275,31 @@ final class FolderPanelController: NSObject {
         close()
     }
 
+    /// The overview owns normal window input. The event tap delivers clicks on our popup,
+    /// and we resolve them against the same icon layout and page dots the view draws.
+    func clickInOverview(folderID: String, from start: CGPoint, to end: CGPoint) {
+        guard self.folderID == folderID, overviewActive, FolderPrefs.opensInOverview, DockAX.shared.overviewIsActive,
+              model.isPresented, model.isSettled else { return }
+        let body = cocoa(bodyFrame)
+        let down = CGPoint(x: start.x - body.minX, y: start.y - body.minY)
+        let up = CGPoint(x: end.x - body.minX, y: end.y - body.minY)
+        let metrics = model.metrics
+        if let page = metrics.pageDot(at: down), metrics.pageDot(at: up) == page {
+            go(toPage: page)
+            return
+        }
+
+        let first = model.page * metrics.perPage
+        let count = min(metrics.perPage, model.apps.count - first)
+        guard count > 0 else { return }
+        let pointer = model.pointer, amount = model.magnificationAmount
+        guard let hit = metrics.hoveredIcon(count: count, point: down, pointer: pointer, amount: amount),
+              metrics.hoveredIcon(count: count, point: up, pointer: pointer, amount: amount)?.index == hit.index
+        else { return }
+        let app = model.apps[first + hit.index]
+        if !app.isPreview { launch(app) }
+    }
+
     // MARK: Every frame: follow the tile, track the pointer
 
     @objc private func tick(_ link: CADisplayLink) {
@@ -269,7 +312,16 @@ final class FolderPanelController: NSObject {
         }
         frameCount += 1
 
-        if let tile = tileItem {
+        if frameCount % 10 == 0, FolderPrefs.opensInOverview {
+            let active = DockAX.shared.overviewIsActive
+            if overviewActive, !active { close(animated: false); return }
+            if !overviewActive, active { GlassMenuController.shared.closeAll() }
+            overviewActive = active
+        }
+
+        // Keep the popup in reach when the auto-hiding Dock slides out underneath it.
+        let followTile = !overviewActive || !CoreDock.autoHideEnabled || isOverDock(NSEvent.mouseLocation)
+        if followTile, let tile = tileItem {
             let frame = AX.frame(tile.element)
             if frame.width > 0 {
                 tileFrame = frame
@@ -277,7 +329,7 @@ final class FolderPanelController: NSObject {
                 tileItem = DockAX.shared.item(for: FolderActions.dockURL(for: folder))   // the Dock restarted
             }
         }
-        if frameCount % 10 == 0 { refreshBarFrame() }
+        if followTile, frameCount % 10 == 0 { refreshBarFrame() }
         position()
         trackPointer()
     }
@@ -297,7 +349,8 @@ final class FolderPanelController: NSObject {
         // another app, drop below that window so the app's name shows on top of the popup; anywhere
         // else (in the popup, a menu, or on the folder's own tile) stay above it, covering the
         // folder's own label.
-        let level: NSWindow.Level = overDock && !onTile && !inMenu ? Self.belowDockLabels : .popUpMenu
+        let level: NSWindow.Level = overviewActive ? .screenSaver
+            : (overDock && !onTile && !inMenu ? Self.belowDockLabels : .popUpMenu)
         if panel.level != level { panel.level = level }
 
         // The Dock shows the folder's name label while the pointer is on its tile, and keeps it
@@ -311,7 +364,7 @@ final class FolderPanelController: NSObject {
 
         // An auto-hiding Dock stays up by itself while the pointer is on it (and keeps
         // magnifying normally). Above it, in or on the way to the popup, hold it up.
-        if CoreDock.autoHideEnabled {
+        if !overviewActive, CoreDock.autoHideEnabled {
             if overDock {
                 releaseDock()
             } else if inPopup || approach || inMenu || dragging {
@@ -347,7 +400,7 @@ final class FolderPanelController: NSObject {
         }
 
         // Esc (or anything else) took the Dock's focus while we were holding it.
-        if holdingDock, frameCount % 6 == 0, !DockAX.shared.isFocused {
+        if !overviewActive, holdingDock, frameCount % 6 == 0, !DockAX.shared.isFocused {
             if inGracePeriod { holdingDock = DockAX.shared.holdOpen(selecting: tileItem); return }
             holdingDock = false
             if !overDock { close() }
@@ -822,8 +875,8 @@ final class FolderPanelController: NSObject {
                            width: content.width, height: content.height)
         if frame != panel.frame { panel.setFrame(frame, display: true) }
         guard isOpen else { return }
-        EventInterceptor.shared.setPanelFrame(CGRect(x: glass.minX, y: primaryHeight - glass.maxY,
-                                                     width: glass.width, height: glass.height))
+        EventInterceptor.shared.setPanelFrame(cocoa(glass), overviewFolderID: overviewActive ? folderID : nil,
+                                              overviewBody: cocoa(bodyFrame))
     }
 
     private func setArrowPosition(_ value: CGFloat) {

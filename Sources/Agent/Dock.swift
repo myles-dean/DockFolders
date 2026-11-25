@@ -75,6 +75,7 @@ final class DockAX {
     private let lock = NSLock()
     private var pid: pid_t = 0
     private var appElement: AXUIElement?
+    private var overviewCheck: (time: TimeInterval, active: Bool)?
 
     private func dockApp() -> AXUIElement? {
         lock.lock(); defer { lock.unlock() }
@@ -104,7 +105,7 @@ final class DockAX {
     var items: [DockItem] {
         guard let list else { return [] }
         let children: [AXUIElement] = AX.value(list, kAXChildrenAttribute) ?? []
-        return children.compactMap(Self.item)
+        return children.compactMap { Self.item($0) }
     }
 
     func item(for url: URL) -> DockItem? {
@@ -127,12 +128,63 @@ final class DockAX {
         return nil
     }
 
-    private static func item(_ element: AXUIElement) -> DockItem? {
+    /// The overview can win the system hit test even over the Dock. In that case, use the
+    /// live frames of the Dock's accessible tiles, within the visible Dock list.
+    func itemForOpening(at point: CGPoint) -> DockItem? {
+        if let item = item(at: point) { return item }
+        guard FolderPrefs.opensInOverview, let list, AX.frame(list).contains(point), overviewIsActive else { return nil }
+        let children: [AXUIElement] = AX.value(list, kAXChildrenAttribute) ?? []
+        return children.compactMap { element -> DockItem? in
+            let frame = AX.frame(element)
+            guard frame.contains(point), let item = Self.item(element, frame: frame),
+                  item.subrole.hasSuffix("DockItem") else { return nil }
+            return item
+        }.min { a, b in
+            hypot(a.frame.midX - point.x, a.frame.midY - point.y)
+                < hypot(b.frame.midX - point.x, b.frame.midY - point.y)
+        }
+    }
+
+    /// Mission Control and App Exposé publish their accessibility groups through WindowManager
+    /// on macOS 27 and through the Dock on macOS 26. The Dock can also expose empty groups.
+    var overviewIsActive: Bool {
+        let now = ProcessInfo.processInfo.systemUptime
+        if let cached = lock.withLock({ overviewCheck }), now - cached.time < 0.1 { return cached.active }
+
+        let active: Bool
+        if #available(macOS 27, *), let manager = NSRunningApplication.runningApplications(
+            withBundleIdentifier: "com.apple.WindowManager"
+        ).first {
+            let app = AXUIElementCreateApplication(manager.processIdentifier)
+            AXUIElementSetMessagingTimeout(app, 0.1)
+            let children: [AXUIElement] = AX.value(app, kAXChildrenAttribute) ?? []
+            active = children.contains { child in
+                let id: String? = AX.value(child, kAXIdentifierAttribute)
+                return id == "mc.display" || id == "appexpose.display"
+            }
+        } else if let app = dockApp() {
+            let children: [AXUIElement] = AX.value(app, kAXChildrenAttribute) ?? []
+            active = children.contains { child in
+                let id: String? = AX.value(child, kAXIdentifierAttribute)
+                guard id == "mc" || id == "appexpose" else { return false }
+                let groups: [AXUIElement] = AX.value(child, kAXChildrenAttribute) ?? []
+                return !groups.isEmpty
+            }
+        } else {
+            active = false
+        }
+        lock.withLock {
+            if overviewCheck.map({ $0.time < now }) ?? true { overviewCheck = (now, active) }
+        }
+        return active
+    }
+
+    private static func item(_ element: AXUIElement, frame: CGRect? = nil) -> DockItem? {
         guard let subrole: String = AX.value(element, kAXSubroleAttribute) else { return nil }
         let url: URL? = (AX.value(element, kAXURLAttribute) as NSURL?) as URL?
         return DockItem(element: element, subrole: subrole,
                         title: AX.value(element, kAXTitleAttribute) ?? "",
-                        url: url, frame: AX.frame(element))
+                        url: url, frame: frame ?? AX.frame(element))
     }
 
     /// Where the Dock bar's inner edge sits when nothing is magnified (global, top-left origin):

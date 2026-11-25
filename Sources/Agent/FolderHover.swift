@@ -62,11 +62,12 @@ final class FolderHover {
         let panel = FolderPanelController.shared
         // Not while a button is down (a click or a drag) or a menu is open.
         guard NSEvent.pressedMouseButtons == 0, !GlassMenuController.shared.isOpen,
-              let item = DockAX.shared.item(at: CGPoint(x: mouse.x, y: primaryHeight - mouse.y)),
+              let item = DockAX.shared.itemForOpening(at: CGPoint(x: mouse.x, y: primaryHeight - mouse.y)),
               let folderID = FolderStore.shared.folders.first(where: {
                   FolderActions.dockURL(for: $0).standardizedFileURL.resolvingSymlinksInPath().path
                       == item.url?.standardizedFileURL.resolvingSymlinksInPath().path
-              })?.id
+              })?.id,
+              FolderPrefs.opensInOverview || !DockAX.shared.overviewIsActive
         else {
             // On the popup (or anywhere else): the visit to the tile is over.
             if !panel.popupContains(mouse) { hovered = nil }
